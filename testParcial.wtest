@@ -1,0 +1,61 @@
+import parcial.*
+
+
+describe "Tests del Servicio" {
+    // Los servicios a utilizar durante los tests
+    const servicioWebOK = new ServicioWeb(url="web1", puerto=8080, estadoServicio = "ok")
+    const servicioWebCaido = new ServicioWeb(url="web2", puerto=8080, estadoServicio = "error")
+    
+    const bdConDatos = new BaseDeDatos(puerto=5432)
+    const bdSinDatos = new BaseDeDatos(puerto=5433) // Un puerto no existente, por lo menos al momento
+
+    const servicioCacheOK = new ServicioCache(puerto=111111, hitRatio = 0.5)
+    const servicioCacheMal = new ServicioCache(puerto=111111, hitRatio = 0.1)
+// Para evitar errores en los tests se resetea servicioDeUptime primero y se carga un unico dato en bdConDatos
+    method initialize(){
+        servicioDeUptime.resetear() // Para esto el metodo en object servicioDeUptime, asi se puede comprobar
+        bdConDatos.agregarDato("parcial")
+    }
+// Explicado en la seccion de serviciosNoDisponibles
+    test "Un Servicio Web Disponible no aparece en la lista de No Disponibles"{
+        servicioDeUptime.registrarServicio(servicioWebOK)
+        assert.that(servicioDeUptime.serviciosNoDisponibles().isEmpty())
+    }
+
+    test "un servicio web caído aparece en la lista de no disponibles" {
+        servicioDeUptime.registrarServicio(servicioWebCaido)
+        assert.equals([servicioWebCaido], servicioDeUptime.serviciosNoDisponibles())
+    }
+
+    test "Una base de datos con datos esta disponible"{
+        servicioDeUptime.registrarServicio(bdConDatos)
+        assert.that(servicioDeUptime.serviciosNoDisponibles().isEmpty())
+    }
+
+    test "una base de datos vacía no está disponible" {
+        servicioDeUptime.registrarServicio(bdSinDatos) 
+        assert.equals([bdSinDatos], servicioDeUptime.serviciosNoDisponibles())
+    }
+
+// Test general de servicios
+    test "Chequeo de una lista de servicios" {
+      servicioDeUptime.registrarServicio(servicioWebOK)
+      servicioDeUptime.registrarServicio(servicioWebCaido)
+      servicioDeUptime.registrarServicio(bdConDatos)
+      servicioDeUptime.registrarServicio(bdSinDatos)
+      const noDisponibles = servicioDeUptime.serviciosNoDisponibles()
+      assert.equals(2, noDisponibles.size())
+      assert.that(noDisponibles.contains(servicioWebCaido))
+      assert.that(noDisponibles.contains(bdSinDatos))
+    }
+// Tests del servicio nuevo
+    test "Servicio de cache con bajo hit ratio no puede estar disponible" {
+        servicioDeUptime.registrarServicio(servicioCacheMal)
+        assert.equals([servicioCacheMal],servicioDeUptime.serviciosNoDisponibles())
+    }
+
+    test "Servicio de cache con hit ratio alto esta disponible" {
+        servicioDeUptime.registrarServicio(servicioCacheOK)
+        assert.that(servicioDeUptime.serviciosNoDisponibles().isEmpty())
+    }
+}
